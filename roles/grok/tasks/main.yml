@@ -1,0 +1,89 @@
+---
+# tasks file for grok
+- name: Download grok_exporter archive
+  get_url:
+    url: https://github.com/fstab/grok_exporter/releases/download/v1.0.0.RC5/grok_exporter-1.0.0.RC5.linux-amd64.zip
+    dest: /tmp/grok_exporter-1.0.0.RC5.linux-amd64.zip
+
+- name: Unzip grok_exporter archive
+  unarchive:
+    src: /tmp/grok_exporter-1.0.0.RC5.linux-amd64.zip
+    dest: /opt/prometheus
+    creates: /opt/prometheus/grok_exporter-1.0.0.RC5.linux-amd64
+    remote_src: yes
+
+- name: Copy grok_exporter to /usr/local/bin
+  copy:
+   src: /opt/prometheus/grok_exporter-1.0.0.RC5.linux-amd64/grok_exporter
+   dest: /usr/local/bin
+   owner: root
+   group: root
+   mode: 755
+   remote_src: yes
+
+- name: Ensure /etc/grok_exporter conf dir exists
+  file:
+    path: "/etc/grok_exporter"
+    state: directory
+  
+- name: Copy grok patterns to /etc/grok_exporter
+  copy:
+   src: /opt/prometheus/grok_exporter-1.0.0.RC5.linux-amd64/patterns
+   dest: /etc/grok_exporter
+   owner: root
+   group: root
+   remote_src: yes
+
+- name: Copy the Grok Exporter systemd service file
+  template:
+    src: grok_exporter.service.j2
+    dest: /etc/systemd/system/grok_exporter.service
+    owner: root
+    group: root
+    mode: 0644
+  notify: reload systemd for grok_exporter
+
+- name: If a new service was added SystemD needs to know about it
+  meta: flush_handlers
+
+- name: Copy the Grok Exporter config file
+  template:
+    src: grok_exporter_config.j2
+    dest: "/etc/grok_exporter/config.yml"
+    owner: root
+    group: root
+    mode: 0644
+  with_items: "{{ grok_services }}"
+  notify: restart grok_exporter
+
+- name: Make sure grok_exporter service run at startup
+  systemd:
+    name: grok_exporter.service
+    enabled: yes
+    state: started
+
+- name: Inserting a line after a pattern in haproxy config file
+  lineinfile:
+    path: /etc/haproxy/haproxy.cfg
+    line: "{{ item.line }}"
+    insertafter: "{{ item.word }}"
+    owner: root
+    group: root
+    mode: 0644
+    backup: yes
+  with_items:
+    - { word: 'acl.*', line: '    acl url_grok         path_beg       -i /grok' }
+    - { word: 'use_backend.*', line: '    use_backend grok            if url_grok' }  
+  notify: restart haproxy service
+
+- name: Inserting a block of line after a pattern in haproxy config file
+  blockinfile:
+    path: /etc/haproxy/haproxy.cfg
+    marker: "-----------------------------------------------------------"
+    state: present
+    backup: yes
+    block: |
+       backend grok
+          reqrep ^([^\ :]*)\ /grok/(.*)   \1\ /\2
+          server       node 127.0.0.1:9144  check
+  notify: restart haproxy service

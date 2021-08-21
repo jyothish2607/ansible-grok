@@ -1,0 +1,20 @@
+---
+# defaults file for grok
+tenant: user1
+grok_services:
+  - name: tomcat-localhost-metrics
+    config_version: 2
+    input:
+      type: file
+      path: /var/log/{{tenant}}/user.log
+      readall: true
+    metrics:
+      - type: counter
+        name: user_activity
+        help: Counter metric example with labels.
+        match: "%{DATE} %{TIME} %{HOSTNAME:instance} user=%{USER:user} message=\"%{GREEDYDATA:data}\""
+        labels:
+          user    : "{{ '{{' }}.user{{ '}}' }}"
+    server: 
+      port:9144
+

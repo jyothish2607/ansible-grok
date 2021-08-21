@@ -1,0 +1,14 @@
+global:
+    config_version: {{ item.config_version }}
+
+input:
+    {{ item.input | to_nice_yaml(indent=4) | indent(4, False) }}
+
+grok:
+    patterns_dir: /etc/grok_exporter/patterns
+
+metrics:
+    {{ item.metrics | to_nice_yaml(indent=4) | indent(4, False) }}
+
+server:
+  port: 9144
