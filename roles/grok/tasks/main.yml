@@ -83,9 +83,12 @@
     path: /etc/haproxy/haproxy.cfg
     marker: "-----------------------------------------------------------"
     state: present
+    owner: root
+    group: root
+    mode: 0644
     backup: yes
     block: |
        backend grok
-          reqrep ^([^\ :]*)\ /grok/(.*)   \1\ /\2
-          server       node 127.0.0.1:9144  check
+           reqrep ^([^\ :]*)\ /grok/(.*)     \1\ /\2
+           server      node 127.0.0.1:9144 check
   notify: restart haproxy service
